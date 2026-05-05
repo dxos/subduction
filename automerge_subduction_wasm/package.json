@@ -22,12 +22,12 @@
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/inkandswitch/subduction",
+    "url": "https://github.com/dxos/automerge-subduction",
     "directory": "automerge_subduction_wasm"
   },
-  "homepage": "https://github.com/inkandswitch/subduction",
+  "homepage": "https://github.com/dxos/automerge-subduction",
   "bugs": {
-    "url": "https://github.com/inkandswitch/subduction/issues"
+    "url": "https://github.com/dxos/automerge-subduction/issues"
   },
   "type": "module",
   "module": "./dist/esm/bundler.js",
