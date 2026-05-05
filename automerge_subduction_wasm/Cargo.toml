@@ -19,6 +19,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 automerge = { workspace = true, features = ["wasm"] }
+automerge-wasm = { workspace = true }
 console_error_panic_hook = { version = "0.1.7", optional = true }
 automerge_sedimentree_wasm = { workspace = true }
 js-sys = { workspace = true }

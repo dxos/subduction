@@ -1,16 +1,15 @@
 {
-  "name": "@automerge/automerge-subduction",
-  "version": "0.12.0",
-  "description": "Wasm bindings for syncing Automerge documents via Subduction",
+  "name": "@dxos/automerge-subduction",
+  "version": "0.1.0",
+  "description": "Unified WASM bindings for Automerge documents and Subduction replication",
   "publishConfig": {
     "access": "public"
   },
   "main": "./dist/cjs/node.cjs",
   "scripts": {
-    "build": "pnpm run build-node && pnpm run build-bundler && pnpm run build-slim",
-    "build-node": "wasm-pack build --out-dir pkg-node --target nodejs --release",
-    "build-bundler": "wasm-pack build --out-dir pkg --target bundler --release",
-    "build-slim": "node build_slim.js"
+    "build": "rm -rf dist && wasm-bodge build --crate-path . --package-json ./package.json --out-dir ./dist && node ./build_js.js",
+    "test": "vitest --run --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json"
   },
   "keywords": [
     "automerge",
@@ -41,11 +40,7 @@
     "./dist/esm/node.js",
     "./dist/esm/web.js",
     "./dist/esm/workerd.js",
-    "./dist/esm/bundler.js",
-    "./dist/esm/debug-bundler.js",
-    "./dist/esm/debug-node.js",
-    "./dist/esm/debug-web.js",
-    "./dist/esm/debug-workerd.js"
+    "./dist/esm/bundler.js"
   ],
   "exports": {
     ".": {
@@ -71,6 +66,7 @@
       "require": "./dist/cjs/slim.cjs"
     },
     "./wasm": "./dist/automerge-subduction.wasm",
+    "./automerge.wasm": "./dist/automerge-subduction.wasm",
     "./wasm-base64": {
       "import": "./dist/esm/wasm-base64.js",
       "require": "./dist/cjs/wasm-base64.cjs"
@@ -106,17 +102,11 @@
     "./debug/iife": "./dist/iife/debug.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
     "@types/node": "^22.17.2",
-    "html-webpack-plugin": "^5.6.4",
-    "ts-loader": "^9.5.2",
+    "esbuild": "^0.25.0",
     "typescript": "^5.9.2",
-    "vite": "^5.4.19",
-    "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.5.0",
-    "webpack": "^5.101.3",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.2.2"
+    "vitest": "^2.1.0"
   },
   "pnpm": {
     "overrides": {

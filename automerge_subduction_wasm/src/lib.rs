@@ -46,8 +46,11 @@ use alloc::string::String;
 
 pub mod js_logger;
 
-// Re-export everything from subduction_wasm and automerge_sedimentree_wasm
+// Re-export everything from automerge_wasm, subduction_wasm, and automerge_sedimentree_wasm.
+// All three contribute their `#[wasm_bindgen]` symbols to this crate's single cdylib so
+// downstream consumers see one unified surface from one shared `.wasm` linear memory.
 pub use automerge_sedimentree_wasm::*;
+pub use automerge_wasm::*;
 pub use subduction_wasm::*;
 
 use wasm_bindgen::prelude::*;
