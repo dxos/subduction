@@ -1,11 +1,12 @@
 import { describe, test, expect } from "vitest"
 
+import type { SedimentreeStorage, Transport } from "../dist/index.js"
 import * as pkg from "../dist/esm/node.js"
 
 describe("Required Subduction surface", () => {
-  // Spec-listed names from UNIFIED_AUTOMERGE_SUBDUCTION_WASM_SPEC.md.
-  // Some spec names are conceptual (Transport, SedimentreeStorage); for those
-  // we verify the concrete implementations exist instead.
+  // Spec-listed runtime names from UNIFIED_AUTOMERGE_SUBDUCTION_WASM_SPEC.md.
+  // Transport / SedimentreeStorage are type-only; imported above so typecheck
+  // verifies dist/index.d.ts re-exports them.
   const REQUIRED_CLASSES = [
     "Subduction",
     "MemorySigner",

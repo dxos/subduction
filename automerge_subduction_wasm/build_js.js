@@ -552,6 +552,13 @@ export type {
 
 export * as next from "./automerge/implementation.js";
 
+// Type-only duck-typed interfaces (wasm-bindgen typescript_custom_section); required by spec for
+// Subduction.acceptTransport / Subduction.hydrate callers.
+export type {
+  Transport,
+  SedimentreeStorage,
+} from "./wasm_bindgen/nodejs/automerge_subduction_wasm.js";
+
 export {
   // Spec-listed required Subduction surface.
   Subduction,

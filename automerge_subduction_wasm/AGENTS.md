@@ -283,11 +283,13 @@ familiar with `import { next } from '@automerge/automerge'`.
 `SubductionLongPoll`, `SubductionHttpLongPoll`, `Sedimentree`, `Digest`, `PeerId`, `WebCryptoSigner`,
 `Fragment`, `FragmentRequested`, `FragmentState`, `FragmentStateStore`, `LooseCommit`).
 
-**Spec deviation:** the spec lists `Transport` and `SedimentreeStorage` but those names are conceptual and not
-actually exported by the Rust crates. The concrete classes above replace them.
+**Spec-listed duck types:** `Transport` and `SedimentreeStorage` are TypeScript-only interfaces emitted by
+wasm-bindgen (`typescript_custom_section` in `subduction_wasm` / `sedimentree_wasm`) and re-exported from
+`dist/index.d.ts`. Runtime exports remain the concrete classes (`AuthenticatedTransport`, `MemoryStorage`, …).
 
 **Types:** `Doc`, `ApplyOptions` (from vendored `implementation.d.ts`); `Heads`, `SyncState`, `Patch`, `PutPatch`,
-`SpliceTextPatch`, `Prop` (from vendored `wasm_types.d.ts`).
+`SpliceTextPatch`, `Prop` (from vendored `wasm_types.d.ts`); plus `Transport`, `SedimentreeStorage` (from the
+wasm-bindgen `.d.ts`, forwarded by `build_js.js`).
 
 ## Re-vendoring procedure
 
