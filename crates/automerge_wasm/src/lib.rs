@@ -1708,9 +1708,14 @@ impl Automerge {
 
 // skip_typescript as the definition requires an optional argument so we define
 // the function in the typescript custom section at the top of the file
+//
+// Local modification (vendored): the upstream `init()` calls
+// `console_error_panic_hook::set_once()` here. The unified cdylib that ships
+// to Cloudflare Workers (`automerge_subduction_wasm`) is built with
+// `panic=unwind`, so panics surface as `PanicError` exceptions at the JS
+// boundary (wasm-bindgen 0.2.118+) without a console hook. See VENDOR.md.
 #[wasm_bindgen(js_name = create, skip_typescript)]
 pub fn init(options: JsValue) -> Result<Automerge, error::BadActorId> {
-    console_error_panic_hook::set_once();
     let actor = js_get(&options, "actor").ok().and_then(|a| a.as_string());
     Automerge::new(actor)
 }

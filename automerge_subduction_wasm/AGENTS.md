@@ -55,7 +55,8 @@ subdirectories of `dist/wasm_bindgen/`.
 |------|---------|
 | `Cargo.toml` | Rust crate manifest. Adds `automerge-wasm = { workspace = true }` to fold the vendored crate's wasm-bindgen exports into our cdylib. |
 | `src/lib.rs` | Rust entrypoint. Has `pub use automerge_wasm::*;` (and the same for sister wasm crates). The single `#[wasm_bindgen(start)]` lives here, gated on `feature = "standalone"`. |
-| `package.json` | npm publish identity: `name`, `version`, `exports` map, `scripts`. The build/test/typecheck scripts run from here. |
+| `package.json` | npm publish identity: `name`, `version`, `exports` map, `scripts`. The build/test/typecheck scripts run from here. The `build` script chains `build_wasm.mjs` and `build_js.js`. |
+| `build_wasm.mjs` | Wraps `wasm-bodge build` so the `panic=unwind` build options are applied (nightly toolchain, `wasm-release` profile, `-Zbuild-std`). See "Panic strategy" below. |
 | `build_js.js` | Post-`wasm-bodge` build orchestrator. Compiles vendored TS, patches wasm-bindgen output, writes per-target wrappers, emits `dist/index.d.ts`. The biggest piece of authored JS in the package. |
 | `tsconfig.json` | TS config for compiling `js/automerge/` and `js/src/` (if any) to `dist/`. `rootDir = ./js`, `outDir = ./dist`. |
 | `tsconfig.test.json` | Stricter TS config used by `pnpm typecheck`. Overrides `rootDir = ./test`. |
@@ -76,9 +77,14 @@ subdirectories of `dist/wasm_bindgen/`.
 
 `pnpm build` runs in two phases:
 
-### Phase 1: `wasm-bodge build`
+### Phase 1: `node ./build_wasm.mjs` → `wasm-bodge build`
 
-1. `cargo build --release -p automerge_subduction_wasm --target wasm32-unknown-unknown`
+`build_wasm.mjs` wraps the `wasm-bodge` invocation to apply the panic=unwind options (see "Panic strategy"
+below): selects the pinned nightly toolchain, passes `--profile wasm-release`, and lets cargo pick up the
+`[unstable] build-std` setting from `.cargo/config.toml`. Then bodge does:
+
+1. `cargo build --target wasm32-unknown-unknown --profile wasm-release` (rebuilding std with the unwind
+   panic runtime via `-Zbuild-std`).
 2. `wasm-opt -Oz` on the resulting `.wasm`.
 3. `wasm-bindgen --target {nodejs, web, bundler}` produces three sets of JS glue under
    `dist/wasm_bindgen/<target>/`.
@@ -138,16 +144,84 @@ The patches use **string-literal anchors** that must match the wasm-bindgen outp
 `wasm-bindgen` is bumped, expect to re-derive the anchors. Each substitution wraps in an existence check that
 throws if the anchor isn't found, so a wasm-bindgen change fails the build loudly rather than silently no-op-ing.
 
-## Why `console_error_panic_hook` is non-optional in the vendored crate
+## Panic strategy: `panic=unwind` for graceful Workers behaviour
 
-Upstream `automerge-wasm` declares `console_error_panic_hook` as optional behind a feature, but its `init()` and
-`load()` functions unconditionally call `console_error_panic_hook::set_once()`. When `automerge_subduction_wasm`
-depends on `automerge-wasm` with `default-features = false` (which it does — workspace conventions), the feature
-is off and compilation fails.
+This cdylib is the only one in the workspace built with `panic = "unwind"`. The motivation is Cloudflare Workers:
+when a wasm module aborts on a panic, the entire Worker isolate is torn down, killing every in-flight request
+in the same isolate, not just the offending one. With unwind, individual panics surface as JS `PanicError`
+exceptions (caught at the wasm-bindgen boundary, 0.2.118+) and the isolate keeps serving other requests.
 
-Solution in [`crates/automerge_wasm/Cargo.toml`](../crates/automerge_wasm/Cargo.toml): remove the optional flag
-and ship `console_error_panic_hook` as a hard dep. `set_once()` is idempotent, so coexisting with the cdylib's
-own panic hook setup is safe.
+Three pieces make this work:
+
+1. **`[profile.wasm-release]`** in the workspace [`Cargo.toml`](../Cargo.toml) inherits `release` and overrides
+   `panic = "unwind"`. The `release` profile itself stays on `panic = "abort"` (smaller CLI binary). Only this
+   crate is built with `wasm-release`.
+2. **`[unstable] build-std = ["std", "panic_unwind", "panic_abort"]`** in
+   [`.cargo/config.toml`](../.cargo/config.toml) makes nightly cargo rebuild std with **both** panic runtimes.
+   Without it the prebuilt wasm32 std is hard-coded to `panic_abort` and the profile's `panic = "unwind"`
+   setting is silently inert. We list `panic_abort` *too* (not just `panic_unwind`) because the sister wasm
+   crates (`subduction_wasm`, `sedimentree_wasm`, `automerge_sedimentree_wasm`) all declare
+   `crate-type = ["cdylib", "rlib"]`, and cargo emits **both** crate types for every dep in the build graph
+   even when only the rlib is consumed. Their cdylib emission uses the wasm32 default panic strategy
+   (`abort`), so without `panic_abort` available it errors with `can't find crate for panic_abort`. Building
+   both runtimes is the cheap fix; the alternative — rewriting every sister crate to gate `cdylib` away when
+   it's a transitive dep — would require structural changes to those crates' published packages. The
+   `[unstable]` section is ignored by stable cargo, so it does not affect builds of the rest of the workspace.
+3. **A pinned nightly toolchain** is required for `-Zbuild-std`. We pin `nightly-2026-04-25` (matching the
+   upstream automerge PR that introduced this approach). Selection happens via `RUSTUP_TOOLCHAIN` (rustup-based
+   dev) or `WASM_RUST_BIN_DIR` PATH-prepend (nix shell, see [`flake.nix`](../flake.nix)).
+   [`automerge_subduction_wasm/build_wasm.mjs`](./build_wasm.mjs) and the `bodge`/`release:wasm:*` recipes in
+   [`nix/commands.nix`](../nix/commands.nix) honour both paths; bump the pinned date deliberately if you need to
+   (single-source: edit `WASM_TOOLCHAIN_DEFAULT` in `build_wasm.mjs` and `wasmToolchainDate` in `flake.nix`).
+
+The vendored `crates/automerge_wasm` no longer depends on `console_error_panic_hook`. The reason is stronger
+than "redundant": with `panic=unwind`, wasm-bindgen 0.2.118+ converts unwound panics into `PanicError`
+exceptions that callers can catch and handle. Reinstalling the console hook on top of that would cause every
+*caught and recovered* panic to also dump a stack trace to `console.error`, which defeats the point of
+exposing panics as catchable exceptions — a Worker that gracefully handles a panic from one bad request would
+still spam its logs with that panic's stack trace. See
+[`crates/automerge_wasm/VENDOR.md`](../crates/automerge_wasm/VENDOR.md) for the local modification record and
+the [upstream PR commit message](https://github.com/automerge/automerge/pull/1363) for the same argument.
+
+For *hard* aborts the unwind runtime cannot recover from (OOM, stack overflow, instance termination — anywhere
+wasm traps and the module is permanently torn down), `start()` installs a `wasm_bindgen::__rt::set_on_abort`
+callback that logs an explanation to the console. The handler is a plain `fn()` with no captures (the API
+stores it as a `u32` index into the wasm function table, so closures are not allowed). Without this hook,
+every subsequent export call after an abort just throws the opaque "Module terminated" error with no breadcrumb
+trail.
+
+### Why only this cdylib uses `panic=unwind`
+
+The workspace contains four wasm cdylib crates: `sedimentree_wasm`, `subduction_wasm`,
+`automerge_sedimentree_wasm`, and this one. **Only `automerge_subduction_wasm` is built with `wasm-release`
+(unwind);** the others still use `release` (abort).
+
+This asymmetry is a deliberate scope decision, not a principled distinction. The Workers target ships *this*
+crate, so the panic-survival benefit is concrete here. The other three are still useful as standalone wasm
+packages but currently have no consumer running them in a multi-tenant isolate where one bad request can take
+down nine others. Upstream's
+[PR review thread](https://github.com/automerge/automerge/pull/1363) made the case that "the build hassle is
+worth it" and flipped unwind from opt-in to default for their single cdylib. By the same logic, we should flip
+the other three eventually — the only thing keeping them on abort is that we haven't paid the build-pipeline
+cost (extending the nightly toolchain provisioning to all four). When a contributor needs panic-survival in a
+sister wasm crate, lift the `wasm-release` profile + `WASM_RUST_BIN_DIR` plumbing from this crate's
+`build_wasm.mjs` and the `nix/commands.nix` recipes; the workspace `Cargo.toml` profile and
+`.cargo/config.toml` already cover any wasm cdylib.
+
+### Building this crate without the nix shell
+
+You need rustup with the pinned nightly + `rust-src`:
+
+```sh
+rustup toolchain install nightly-2026-04-25 --profile minimal --component rust-src
+rustup target add wasm32-unknown-unknown --toolchain nightly-2026-04-25
+```
+
+Then `pnpm build` in this directory works as usual. `build_wasm.mjs` will set `RUSTUP_TOOLCHAIN` to the pin so
+`wasm-bodge`'s internal `cargo` invocation lands on nightly.
+
+Override the pin via the `WASM_TOOLCHAIN` env var (e.g. `WASM_TOOLCHAIN=nightly pnpm build` to float on latest
+nightly).
 
 ## Why we don't `import.meta.url` in CJS bundles
 

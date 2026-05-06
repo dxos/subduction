@@ -5,3 +5,24 @@ rustflags = ["--cfg", "tokio_unstable"]
 
 [target.wasm32-unknown-unknown]
 rustflags = ["--cfg", 'getrandom_backend="wasm_js"', "-C", "target-feature=+simd128"]
+
+# Rebuild std with both panic runtimes so the `[profile.wasm-release]`
+# build of `automerge_subduction_wasm` can use `panic = "unwind"` while the
+# sister wasm crates (`subduction_wasm`, `sedimentree_wasm`,
+# `automerge_sedimentree_wasm`) keep their default `panic = "abort"` for
+# their own cdylib emissions. The prebuilt wasm32 std is hard-coded to
+# `panic_abort`, so without rebuilding std no profile change to `unwind`
+# can take effect; and without listing `panic_abort` here the sister
+# crates' cdylib emissions (which cargo always produces because their
+# `crate-type` includes `cdylib`, even when they are only consumed as
+# rlibs) cannot find their panic runtime and fail to link.
+#
+# `[unstable]` only takes effect on the nightly toolchain. Stable cargo
+# silently ignores the section, so leaving it here is safe for everyone
+# building the workspace's non-wasm targets (CLI, tests) on stable.
+#
+# Cargo additionally requires `--target` to be set whenever `build-std`
+# applies, so the option is a no-op for any host-target build (which never
+# passes `--target`). That makes this safe to leave on globally.
+[unstable]
+build-std = ["std", "panic_unwind", "panic_abort"]

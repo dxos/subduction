@@ -191,6 +191,41 @@ strip = "debuginfo"
 [profile.release.package.automerge_subduction_wasm]
 strip = "debuginfo"
 
+# Wasm release profile for `automerge_subduction_wasm` (the unified cdylib that
+# ships to Cloudflare Workers via `@dxos/automerge-subduction`). Inherits all
+# of `release`'s size/perf knobs but overrides `panic = "unwind"` so Rust
+# panics in exported functions surface as `PanicError` exceptions at the JS
+# boundary (wasm-bindgen 0.2.118+) instead of aborting the WASM instance.
+#
+# The other `_wasm` crates still use plain `release` (panic=abort) — only the
+# Workers target needs unwind, since aborts there kill the entire isolate
+# along with every in-flight request.
+#
+# Building this profile requires:
+#   - the nightly toolchain (for `-Zbuild-std`)
+#   - the `rust-src` rustup component
+#   - `[unstable] build-std = ["std", "panic_unwind", "panic_abort"]` in
+#     `.cargo/config.toml` so std is rebuilt with **both** panic runtimes
+#     (the unified cdylib links `panic_unwind`; sister wasm crates whose
+#     `crate-type = ["cdylib", "rlib"]` produce a discarded cdylib emission
+#     that still links `panic_abort` — see the config file's comment).
+# Nightly is selected via `RUSTUP_TOOLCHAIN` in
+# `automerge_subduction_wasm/build_wasm.mjs` and via PATH-prepend in
+# `nix/commands.nix`'s wasm recipes.
+#
+# Size cost: the unified cdylib grows from ~778 KiB → ~905 KiB gzipped
+# (~16% bigger) due to the unwind landing pads + `panic_unwind` runtime.
+# Worth it for graceful Workers panic recovery; not worth it for the sister
+# crates that aren't running in multi-tenant isolates.
+[profile.wasm-release]
+inherits = "release"
+panic = "unwind"
+
+# Mirror the per-package strip override from `[profile.release]` so wasm-release
+# also keeps the wasm name section for readable production stack traces.
+[profile.wasm-release.package.automerge_subduction_wasm]
+strip = "debuginfo"
+
 # Optimize heavy dependencies in test/dev builds so that integration tests
 # exercising real Automerge documents finish in reasonable time.
 # Without this, debug-mode HashSet/HashMap and automerge internals are

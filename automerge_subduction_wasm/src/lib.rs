@@ -277,18 +277,21 @@ pub fn set_subduction_log_level(level: &str) -> Result<(), JsValue> {
     Ok(())
 }
 
-/// Set a panic hook to get better error messages if the code panics.
+/// Initialize tracing infrastructure with the JS callback layer.
 ///
-/// Also initializes the tracing infrastructure with the JS callback layer.
+/// Historically also installed `console_error_panic_hook`. That hook was
+/// removed deliberately, not just as redundant cleanup: with the
+/// `panic=unwind` build, Rust panics surface as `PanicError` exceptions at
+/// the JS boundary (wasm-bindgen 0.2.118+). Reinstalling the console hook
+/// would make every *caught and handled* panic also dump a stack trace to
+/// `console.error`, defeating the point of exposing panics as catchable
+/// exceptions — every recovery site would pollute the console with noise
+/// the caller has already chosen to handle.
 ///
-/// # Panics
-///
-/// Will (ironically) panic if unable to set the global panic handler.
+/// Hard wasm aborts (instance termination — see `start()`) remain covered
+/// by the abort handler installed via `wasm_bindgen::__rt::set_on_abort`.
 #[wasm_bindgen]
 pub fn set_panic_hook() {
-    #[cfg(feature = "console_error_panic_hook")]
-    console_error_panic_hook::set_once();
-
     // Only initialize tracing if a global subscriber has not already been set.
     // This makes set_panic_hook() safe to call multiple times and safe when
     // the embedding application has already configured tracing.
@@ -307,9 +310,25 @@ pub fn set_panic_hook() {
 /// crates that define their own `#[wasm_bindgen(start)]` should depend on
 /// `automerge_subduction_wasm` with `default-features = false` and call
 /// [`set_panic_hook`] from their own start function.
+///
+/// We install a hard-abort logging hook via `wasm_bindgen::__rt::set_on_abort`
+/// so that wasm traps (instance termination — OOM, stack overflow, anything
+/// the unwind runtime cannot recover from) emit a console message before the
+/// module is permanently torn down. Recoverable Rust panics do not reach this
+/// path: they surface as `PanicError` exceptions at the JS boundary thanks to
+/// the `panic=unwind` build, which is why we no longer install
+/// `console_error_panic_hook` here.
 #[cfg(feature = "standalone")]
 #[wasm_bindgen(start)]
 pub fn start() {
+    fn log_abort() {
+        web_sys::console::error_1(
+            &"automerge_subduction_wasm: WASM instance aborted; subsequent calls will throw \"Module terminated\""
+                .into(),
+        );
+    }
+    let _ = wasm_bindgen::__rt::set_on_abort(log_abort);
+
     set_panic_hook();
 
     tracing::info!(

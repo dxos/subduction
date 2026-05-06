@@ -18,10 +18,6 @@ default = []
 
 [dependencies]
 automerge = { workspace = true, features = ["wasm", "utf16-indexing"] }
-# Required (not optional) because vendored `init()` and `load()` unconditionally
-# call `console_error_panic_hook::set_once()`. `set_once()` is idempotent, so
-# co-existing with the cdylib's own panic hook setup is safe.
-console_error_panic_hook = "0.1.7"
 hex = { version = "0.4" }
 itertools = "0.14.0"
 js-sys = { workspace = true }

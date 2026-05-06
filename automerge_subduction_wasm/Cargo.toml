@@ -20,12 +20,14 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 automerge = { workspace = true, features = ["wasm"] }
 automerge-wasm = { workspace = true }
-console_error_panic_hook = { version = "0.1.7", optional = true }
 automerge_sedimentree_wasm = { workspace = true }
 js-sys = { workspace = true }
 subduction_wasm = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["registry", "std"] }
+# `web-sys` console for the hard-abort logging hook installed in `start()`.
+# See `set_on_abort` in src/lib.rs.
+web-sys = { version = "0.3", features = ["console"] }
 wasm-bindgen = { workspace = true }
 wasm-tracing = { workspace = true, optional = true }
 wasm_refgen = { workspace = true }
@@ -34,8 +36,7 @@ wasm_refgen = { workspace = true }
 getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 
 [features]
-default = ["console_error_panic_hook", "idb", "standalone", "std", "wasm-tracing"]
-console_error_panic_hook = ["dep:console_error_panic_hook"]
+default = ["idb", "standalone", "std", "wasm-tracing"]
 # IndexedDB storage backend (browser-only).
 idb = ["subduction_wasm/idb"]
 # Enable the #[wasm_bindgen(start)] entry point. Disable when using

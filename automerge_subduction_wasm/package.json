@@ -7,7 +7,7 @@
   },
   "main": "./dist/cjs/node.cjs",
   "scripts": {
-    "build": "rm -rf dist && wasm-bodge build --crate-path . --package-json ./package.json --out-dir ./dist && node ./build_js.js",
+    "build": "rm -rf dist && node ./build_wasm.mjs && node ./build_js.js",
     "test": "vitest --run --passWithNoTests",
     "typecheck": "tsc --noEmit -p tsconfig.test.json"
   },
@@ -66,6 +66,7 @@
       "require": "./dist/cjs/slim.cjs"
     },
     "./wasm": "./dist/automerge-subduction.wasm",
+    "./automerge.wasm": "./dist/automerge-subduction.wasm",
     "./wasm-base64": {
       "import": "./dist/esm/wasm-base64.js",
       "require": "./dist/cjs/wasm-base64.cjs"

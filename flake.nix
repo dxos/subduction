@@ -89,6 +89,22 @@
           exec "${nightly-rustfmt-unwrapped}/bin/rustfmt" "$@"
         '';
 
+        # Pinned dated nightly used to build `automerge_subduction_wasm` with
+        # `-Zbuild-std=std,panic_unwind` so panics in exported functions
+        # surface as `PanicError` exceptions at the JS boundary instead of
+        # aborting the WASM module. The other wasm crates still build with
+        # the stable workspace toolchain.
+        #
+        # Bump deliberately; CI can pin a different nightly via the
+        # `WASM_TOOLCHAIN` env var consumed by
+        # `automerge_subduction_wasm/build_wasm.mjs`.
+        wasmToolchainDate = "2026-04-25";
+
+        wasm-nightly-toolchain = pkgs.rust-bin.nightly."${wasmToolchainDate}".minimal.override {
+          extensions = [ "rust-src" ];
+          targets = [ "wasm32-unknown-unknown" ];
+        };
+
         # wasm-bodge: universal npm package builder for wasm-bindgen crates
         # Not yet in nixpkgs; edition 2024 requires our rust-overlay toolchain
         wasm-bodge-rustPlatform = pkgs.makeRustPlatform {
@@ -153,7 +169,7 @@
 
         # Project-specific commands (monitoring, etc.)
         projectCommands = import ./nix/commands.nix {
-          inherit pkgs system cmd wasm-bodge;
+          inherit pkgs system cmd wasm-bodge wasm-nightly-toolchain;
         };
 
         command_menu = command-utils.commands.${system} [
@@ -293,6 +309,13 @@
             unset SOURCE_DATE_EPOCH
             export WORKSPACE_ROOT="$(pwd)"
             export RUSTFMT="${nightly-rustfmt}/bin/rustfmt"
+            # Pinned nightly toolchain dir for the `automerge_subduction_wasm`
+            # `panic=unwind` build. `build_wasm.mjs` and `nix/commands.nix`
+            # prepend this to PATH only for that crate so the rest of the
+            # workspace stays on the stable toolchain. The trailing dated
+            # name is informational; the actual selection is by directory.
+            export WASM_RUST_BIN_DIR="${wasm-nightly-toolchain}/bin"
+            export WASM_TOOLCHAIN="nightly-${wasmToolchainDate}"
             menu
           '' + pkgs.lib.optionalString pkgs.stdenv.isLinux ''
             unset PKG_CONFIG_PATH
