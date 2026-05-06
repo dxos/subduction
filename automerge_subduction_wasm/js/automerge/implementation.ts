@@ -650,7 +650,11 @@ function _change<T>(
  */
 export function emptyChange<T>(
   doc: Doc<T>,
-  options: string | ChangeOptions<T> | void,
+  // Local fork divergence vs. upstream automerge: `void` → `undefined`. TS's
+  // `x === undefined` narrow does NOT remove `void` from a union (microsoft/
+  // TypeScript#35857), which is why upstream's `tsc` reports phantom
+  // "Type 'void | ChangeOptions<T>' is not assignable" errors here.
+  options: string | ChangeOptions<T> | undefined,
 ) {
   if (options === undefined) {
     options = {}

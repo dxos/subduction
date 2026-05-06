@@ -781,7 +781,13 @@ function listMethods(target: Target) {
       f: (acc: U, currentValue: AutomergeValue) => U,
       initialValue: U,
     ): U | undefined {
-      return this.toArray().reduce<U>(f, initialValue)
+      // Local fork divergence vs. upstream automerge: `<U>` dropped from the
+      // `.reduce(...)` call. The `this` of these object-literal methods has
+      // no contextual type, so `this.toArray()` is `any`; TS rejects explicit
+      // type arguments on untyped calls. Inference still picks the right `U`
+      // from `initialValue: U` per the method's own signature, and the
+      // sibling `reduceRight` below uses the same shape without `<U>`.
+      return this.toArray().reduce(f, initialValue)
     },
 
     reduceRight<U>(

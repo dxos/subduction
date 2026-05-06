@@ -354,13 +354,23 @@ different `automerge` version. Run `cargo tree -p automerge_subduction_wasm | gr
 one `automerge` line (with `(*)` markers for repeats). The vendored `crates/automerge_wasm` must depend on
 `automerge = { workspace = true }`, never path-relative.
 
-### TypeScript type errors in vendored code
+### Local TypeScript fork divergences in `js/automerge/`
 
-`tsc` reports 5 errors against `js/automerge/implementation.ts` and `proxies.ts` (e.g. "Type 'void |
-ChangeOptions<T>' is not assignable to type 'object'"). These are upstream's loose patterns. **Don't fix them.**
-Our build flow tolerates them: `build_js.js` runs tsc with `--emitDeclarationOnly`, ignores the exit code, and
-proceeds. esbuild compiles the same source to JS without issue. If you fix one, the next re-vendor will
-re-introduce it.
+Two minimal type-tightening edits sit on top of the otherwise-verbatim upstream vendor (see
+[`js/automerge/VENDOR.md`](js/automerge/VENDOR.md)):
+
+1. `implementation.ts` `emptyChange` parameter: `void` → `undefined`. TS's `x === undefined` narrow does
+   not strip `void` from a union ([microsoft/TypeScript#35857](https://github.com/microsoft/TypeScript/issues/35857)),
+   so upstream's mutation-narrow pattern emits phantom errors against `options.time` / `options.message`.
+2. `proxies.ts` `reduce<U>(...)`: dropped the explicit `<U>` type argument. The proxy methods' `this` is
+   untyped, which makes `this.toArray()` return `any`; TS rejects explicit type arguments on untyped calls
+   even though sibling methods (`reduceRight`, `map`) use the same shape without annotation.
+
+Each call site has an inline comment marking the divergence. **Total cost at re-vendor: ~2 lines of conflict.**
+Re-apply by repeating the edits and the comments after running the re-vendor procedure.
+
+If a future re-vendor fixes these upstream, drop the local divergence and the comments — `pnpm build` will
+keep working either way.
 
 ### "using deprecated parameters for `initSync()`" warning
 
