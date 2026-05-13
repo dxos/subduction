@@ -1,6 +1,6 @@
 {
   "name": "@dxos/automerge-subduction",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Unified WASM bindings for Automerge documents and Subduction replication",
   "publishConfig": {
     "access": "public"
@@ -71,35 +71,7 @@
       "import": "./dist/esm/wasm-base64.js",
       "require": "./dist/cjs/wasm-base64.cjs"
     },
-    "./iife": "./dist/iife/index.js",
-    "./debug": {
-      "types": "./dist/index.d.ts",
-      "workerd": {
-        "import": "./dist/esm/debug-workerd.js",
-        "require": "./dist/cjs/debug-web.cjs"
-      },
-      "node": {
-        "import": "./dist/esm/debug-node.js",
-        "require": "./dist/cjs/debug-node.cjs"
-      },
-      "browser": {
-        "import": "./dist/esm/debug-bundler.js",
-        "require": "./dist/cjs/debug-web.cjs"
-      },
-      "import": "./dist/esm/debug-web.js",
-      "require": "./dist/cjs/debug-web.cjs"
-    },
-    "./debug/slim": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/esm/debug-slim.js",
-      "require": "./dist/cjs/debug-slim.cjs"
-    },
-    "./debug/wasm": "./dist/automerge-subduction-debug.wasm",
-    "./debug/wasm-base64": {
-      "import": "./dist/esm/debug-wasm-base64.js",
-      "require": "./dist/cjs/debug-wasm-base64.cjs"
-    },
-    "./debug/iife": "./dist/iife/debug.js"
+    "./iife": "./dist/iife/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.17.2",
