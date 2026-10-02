@@ -351,3 +351,20 @@ fn asymmetric_fragment_no_matching_head_does_send_duplicates() {
          remote already has via the fragment"
     );
 }
+
+/// Both peers hold fragment F(head=H). Local also holds loose C, a child
+/// of H. A fragment covers its head and ancestors, never descendants, so
+/// C must be sent.
+#[test]
+fn sends_child_of_shared_fragment_head() {
+    let c = loose(b'C', &[b'H']);
+    let frag = fragment(b'H', &[], &[], 1);
+
+    let local = Sedimentree::new(vec![frag.clone()], vec![c]);
+    let remote = Sedimentree::new(vec![frag], Vec::new());
+
+    let diff = local.diff_remote_fingerprints(&remote.fingerprint_summarize(&seed()));
+
+    let ids: BTreeSet<CommitId> = diff.local_only_commits.iter().map(|(id, _)| **id).collect();
+    assert!(ids.contains(&commit_id(b'C')), "C descends from H; F does not cover it");
+}
